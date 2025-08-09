@@ -1,0 +1,46 @@
+{
+  "name": "query-visualiser-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.28.0",
+    "@babel/traverse": "^7.28.0",
+    "@monaco-editor/react": "^4.7.0",
+    "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
+    "monaco-editor": "^0.52.2",
+    "node-sql-parser": "^5.3.11",
+    "process": "^0.11.10",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "reactflow": "^11.11.4",
+    "sql-formatter": "^15.6.6",
+    "zod": "^4.0.16"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@types/dagre-d3": "^0.6.6",
+    "@types/graphlib": "^2.1.12",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.39.0",
+    "vercel": "^44.7.3",
+    "vite": "^7.1.0"
+  }
+}
