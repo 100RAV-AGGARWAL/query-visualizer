@@ -1,8 +1,10 @@
+/* App specific overrides are now handled in index.css for global theming.
+   Keeping this file minimal to avoid conflicting template styles. */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  max-width: unset;
+  margin: 0;
+  padding: 0;
+  text-align: unset;
 }
 
 .logo {
