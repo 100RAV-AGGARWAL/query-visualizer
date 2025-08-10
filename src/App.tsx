@@ -52,7 +52,6 @@ export default function App() {
   const [direction, setDirection] = useState<'LR' | 'TB'>('LR');
   const [astViewType, setAstViewType] = useState<'text' | 'graphical'>('text');
   const [leftWidthPct, setLeftWidthPct] = useState(40);
-  const [middleWidthPct, setMiddleWidthPct] = useState(35);
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingMiddle, setIsDraggingMiddle] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,7 +97,6 @@ export default function App() {
       const rect = containerRef.current.getBoundingClientRect();
       const newMiddleWidth = ((e.clientX - rect.left) / rect.width) * 100;
       const newMiddleWidthPct = Math.max(25, Math.min(50, newMiddleWidth));
-      setMiddleWidthPct(newMiddleWidthPct);
       // Adjust left panel to maintain proportions
       const remainingWidth = 100 - newMiddleWidthPct;
       setLeftWidthPct(Math.max(20, Math.min(40, remainingWidth * 0.6)));
