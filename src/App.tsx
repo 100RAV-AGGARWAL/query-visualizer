@@ -1,11 +1,13 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import './App.css';
 import type { ParsedQuery, QueryInputMode } from './types';
 import ModeToggle from './components/ModeToggle';
 import DirectionToggle from './components/DirectionToggle';
 import CodeEditor from './components/Editor';
 import GraphView from './components/GraphView';
-import Insights from './components/Insights';
+import ASTTree from './components/ASTTree';
+import GraphicalAST from './components/GraphicalAST';
+import ASTViewToggle from './components/ASTViewToggle';
 import { parseSqlToGraph } from './lib/sqlParser';
 import { parseOrmJsToGraph } from './lib/ormParser';
 import { parseOrmPyToGraph } from './lib/ormPyParser';
@@ -42,102 +44,203 @@ stmt = select(User).join(Address).where(Address.city == 'NYC')
 q = session.query(Order).join(User).outerjoin(Product).filter(Order.amount > 100)
 `;
 
-function buildGraph(mode: QueryInputMode, text: string): ParsedQuery {
-  if (mode === 'sql') return parseSqlToGraph(text);
-  if (mode === 'orm-js') return parseOrmJsToGraph(text);
-  return parseOrmPyToGraph(text);
-}
+
 
 export default function App() {
+  const [text, setText] = useState(EXAMPLE_SQL);
   const [mode, setMode] = useState<QueryInputMode>('sql');
-  const [text, setText] = useState<string>(EXAMPLE_SQL);
   const [direction, setDirection] = useState<'LR' | 'TB'>('LR');
-  const [leftWidthPct, setLeftWidthPct] = useState<number>(45);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [astViewType, setAstViewType] = useState<'text' | 'graphical'>('text');
+  const [leftWidthPct, setLeftWidthPct] = useState(40);
+  const [middleWidthPct, setMiddleWidthPct] = useState(35);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingMiddle, setIsDraggingMiddle] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const showFormat = mode === 'sql';
+  const parsed: ParsedQuery = (() => {
+    try {
+      if (mode === 'sql') return parseSqlToGraph(text);
+      if (mode === 'orm-js') return parseOrmJsToGraph(text);
+      if (mode === 'orm-py') return parseOrmPyToGraph(text);
+      return parseSqlToGraph(text);
+    } catch {
+      return { rootId: 'root:error', nodes: [{ id: 'root:error', label: 'Parse error', kind: 'select' }], edges: [] };
+    }
+  })();
 
   useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
+    const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const pct = (x / rect.width) * 100;
-      const clamped = Math.min(80, Math.max(20, pct));
-      setLeftWidthPct(clamped);
+      const newLeftWidth = ((e.clientX - rect.left) / rect.width) * 100;
+      setLeftWidthPct(Math.max(20, Math.min(60, newLeftWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
     }
-    function onMouseUp() {
-      if (isDragging) setIsDragging(false);
-    }
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+
     return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging]);
 
-  const graph = useMemo(() => buildGraph(mode, text), [mode, text]);
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingMiddle || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const newMiddleWidth = ((e.clientX - rect.left) / rect.width) * 100;
+      const newMiddleWidthPct = Math.max(25, Math.min(50, newMiddleWidth));
+      setMiddleWidthPct(newMiddleWidthPct);
+      // Adjust left panel to maintain proportions
+      const remainingWidth = 100 - newMiddleWidthPct;
+      setLeftWidthPct(Math.max(20, Math.min(40, remainingWidth * 0.6)));
+    };
 
-  const showFormat = mode === 'sql';
+    const handleMouseUp = () => {
+      setIsDraggingMiddle(false);
+    };
+
+    if (isDraggingMiddle) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingMiddle]);
 
   return (
-    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <header className="header-gradient" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <h2 style={{ margin: 0, letterSpacing: 0.2 }}>SQL/ORM Query Visualizer</h2>
-        <div style={{ flex: 1 }} />
-        <ModeToggle mode={mode} onChange={(m) => {
-          setMode(m);
-          setText(m === 'sql' ? EXAMPLE_SQL : m === 'orm-js' ? EXAMPLE_ORM : EXAMPLE_SQLALCHEMY);
-        }} />
-        <DirectionToggle value={direction} onChange={setDirection} />
-        <div style={{ width: 140, marginLeft: 8, display: 'flex', justifyContent: 'flex-end' }}>
-          {showFormat ? (
-            <button
-              style={{ whiteSpace: 'nowrap', minWidth: 120, height: 36 }}
-              onClick={() => setText((t) => { try { return format(t); } catch { return t; } })}
-            >
-              Format SQL
-            </button>
-          ) : (
-            <div style={{ width: 120, height: 36 }} />
-          )}
+    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <header style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Query Visualizer
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ModeToggle mode={mode} onChange={(m) => {
+              setMode(m);
+              setText(m === 'sql' ? EXAMPLE_SQL : m === 'orm-js' ? EXAMPLE_ORM : EXAMPLE_SQLALCHEMY);
+            }} />
+            <DirectionToggle value={direction} onChange={setDirection} />
+            {showFormat && (
+              <button
+                style={{ 
+                  whiteSpace: 'nowrap', 
+                  minWidth: 100, 
+                  height: 32,
+                  padding: '0 12px',
+                  fontSize: 12,
+                  borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  backgroundColor: 'rgba(255,255,255,0.05)',
+                  color: '#e5e7eb',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+                }}
+                onClick={() => setText((t) => { try { return format(t); } catch { return t; } })}
+              >
+                Format SQL
+              </button>
+            )}
+          </div>
         </div>
       </header>
-
-      <div ref={containerRef} style={{ flex: 1, padding: 16, paddingTop: 0, display: 'flex', gap: 0, minHeight: 0 }}>
-        <div className="panel" style={{ width: `${leftWidthPct}%`, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontWeight: 700, padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>Query</div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <CodeEditor value={text} onChange={setText} mode={mode} />
+      
+      <div 
+        ref={containerRef}
+        style={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          overflow: 'hidden',
+          padding: '8px',
+          gap: '8px'
+        }}
+      >
+        {/* Top Row - Query Editor and Graph View */}
+        <div style={{ 
+          display: 'flex', 
+          height: '60%',
+          gap: '8px'
+        }}>
+          {/* Left Panel - Query Editor */}
+          <div className="panel" style={{ width: `${leftWidthPct}%`, minWidth: 280 }}>
+            <div style={{ 
+              padding: '8px 12px', 
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#9ca3af'
+            }}>
+              Query Editor
+            </div>
+            <div style={{ height: 'calc(100% - 40px)', padding: '8px' }}>
+              <CodeEditor value={text} onChange={setText} mode={mode} />
+            </div>
+          </div>
+          
+          {/* First Resizer */}
+          <div 
+            className="resizer"
+            onMouseDown={() => setIsDragging(true)}
+          />
+          
+          {/* Right Panel - Graph View */}
+          <div className="panel" style={{ flex: 1, minWidth: 280 }}>
+            <div style={{ 
+              padding: '8px 12px', 
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              fontSize: 12,
+              fontWeight: 500,
+              color: '#9ca3af'
+            }}>
+              Graph View
+            </div>
+            <div style={{ height: 'calc(100% - 40px)', padding: '8px' }}>
+              <GraphView data={parsed} direction={direction} />
+            </div>
           </div>
         </div>
-
-        <div
-          className={isDragging ? 'resizer dragging' : 'resizer'}
-          onMouseDown={() => setIsDragging(true)}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize editor and graph panels"
-        />
-
-        <div className="panel" style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-            <div style={{ fontWeight: 700 }}>Visualizer</div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>Direction: {direction}</div>
+        
+        {/* Bottom Row - AST Structure (100% width) */}
+        <div className="panel" style={{ height: '40%' }}>
+          <div style={{ 
+            padding: '8px 12px', 
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#9ca3af' }}>AST Structure</span>
+            <ASTViewToggle value={astViewType} onChange={setAstViewType} />
           </div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <GraphView data={graph} direction={direction} />
+          <div style={{ height: 'calc(100% - 40px)', padding: '8px' }}>
+            {astViewType === 'text' ? (
+              <ASTTree data={parsed} />
+            ) : (
+              <GraphicalAST data={parsed} />
+            )}
           </div>
         </div>
       </div>
-
-      <Insights data={graph} />
-
-      {graph.errors && graph.errors.length > 0 && (
-        <div style={{ padding: 12, color: '#b91c1c' }}>
-          Error: {graph.errors[0]}
-        </div>
-      )}
     </div>
   );
 }
