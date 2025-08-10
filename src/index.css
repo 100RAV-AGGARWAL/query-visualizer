@@ -87,7 +87,7 @@ button:focus-visible {
 }
 .seg-btn.active {
   background: linear-gradient(180deg, rgba(167,139,250,0.35), rgba(244,114,182,0.35));
-  color: #111827;
+  color: #3fdfff;
 }
 
 /* Jazzy header gradient */
